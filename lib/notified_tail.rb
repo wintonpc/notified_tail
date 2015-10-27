@@ -54,7 +54,7 @@ class NotifiedTail
     when /bsd/, /darwin/
       require 'rb-kqueue'
       @queue = KQueue::Queue.new
-      @queue.watch_file(ARGV.first, :extend) { yield }
+      @queue.watch_file(file_path, :extend) { yield }
       @queue.run
     when /linux/
       require 'rb-inotify'
