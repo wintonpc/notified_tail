@@ -8,7 +8,7 @@ Inspired by http://rubyforadmins.com/reading-growing-files
 
 ```ruby
 require 'notified_tail'
-NotifiedTail.tail(file_path) do |line|
+NotifiedTail.tail(file_path, seek_end: true) do |line|
   puts line
 end
 ```
