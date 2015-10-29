@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = 'notified_tail'
-  spec.version       = '0.2.1'
+  spec.version       = '0.2.2'
   spec.authors       = ['Peter Winton']
   spec.email         = ['pwinton@indigobio.com']
   spec.summary       = %q{Low latency file tailing in ruby}

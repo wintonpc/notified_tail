@@ -1,16 +1,17 @@
 require 'rspec'
 require 'securerandom'
 require 'notified_tail'
+require 'fileutils'
 
 describe NotifiedTail do
   describe '#tail' do
     let!(:seek_end) { false }
     let!(:force_poll) { false }
+    let!(:fn) { SecureRandom.uuid }
+    after(:each) { File.delete(fn) }
 
     shared_examples 'tail -f' do
       let!(:lines) { [] }
-      let!(:fn) { SecureRandom.uuid }
-      after(:each) { File.delete(fn) }
 
       it 'tails a growing file, line by line' do
 
@@ -34,11 +35,6 @@ describe NotifiedTail do
         append(fn, "ing\nlonger\n")
         append(fn, "line with words\n")
         watcher.join
-      end
-
-      def append(fn, text)
-        File.open(fn, 'a') { |f| f.print(text) }
-        sleep(0.1)
       end
     end
 
@@ -73,6 +69,53 @@ describe NotifiedTail do
         expect(KQueue::Queue).to_not receive(:new) if defined?(KQueue::Queue)
       end
       it_behaves_like 'tail -f -n 9999PB'
+    end
+
+    it 'can be stopped before new data is tailed' do
+      File.write(fn, "hello\n")
+
+      thread = Thread.start do
+        notifier = NotifiedTail.new
+        notifier.tail(fn, seek_end: false) do |line|
+          print "saw #{line.inspect}\n"
+          if line == 'hello'
+            Thread.start do
+              expect(notifier.instance_variable_get(:@queue)).to be_nil
+              notifier.stop
+            end
+          end
+        end
+      end
+
+      thread.join
+    end
+
+    it 'can be stopped after new data is tailed (must write to the file)' do
+      thread = Thread.start do
+        notifier = NotifiedTail.new
+        notifier.tail(fn, seek_end: false) do |line|
+          print "saw #{line.inspect}\n"
+          if line == 'there'
+            Thread.start do
+              expect(notifier.instance_variable_get(:@queue)).to_not be_nil
+              notifier.stop
+              File.open(notifier.file_path, 'a'){|f| f.print("\n")}
+            end
+          end
+        end
+      end
+      sleep(0.25) # let the notifier start up
+
+      append(fn, "hello\n")
+      sleep(0.5)
+      append(fn, "there\n")
+
+      thread.join
+    end
+
+    def append(fn, text)
+      File.open(fn, 'a') { |f| f.print(text) }
+      sleep(0.1)
     end
 
   end

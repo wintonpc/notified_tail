@@ -16,7 +16,7 @@ class NotifiedTail
     new.tail(file_path, opts, &on_line)
   end
 
-  def tail(file_path, opts, &on_line)
+  def tail(file_path, opts={}, &on_line)
     @file_path = file_path
     @stopped = false
     seek_end = opts.fetch(:seek_end, true)
@@ -64,12 +64,12 @@ class NotifiedTail
         require 'rb-kqueue'
         @queue = KQueue::Queue.new
         @queue.watch_file(file_path, :extend) { block.call }
-        @queue.run
+        @queue.run unless @stopped
       when /linux/
         require 'rb-inotify'
         @queue = INotify::Notifier.new
         @queue.watch(file_path, :modify) { block.call }
-        @queue.run
+        @queue.run unless @stopped
       else
         poll(file_path, &block)
       end
