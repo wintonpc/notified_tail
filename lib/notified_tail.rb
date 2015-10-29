@@ -8,22 +8,25 @@ class NotifiedTail
   # @option opts [Boolean] seek_end (true)
   #   If true, seeks to the end of the file before reporting lines.
   #   Otherwise, reports all lines starting at the beginning of the file.
+  # @option opts [Boolean] force_poll (false)
+  #   Poll even if inotify or kqueue are available
   def self.tail(file_path, opts={}, &on_line)
     new.tail(file_path, opts, &on_line)
   end
 
-  def tail(filename, opts, &on_line)
+  def tail(file_path, opts, &on_line)
     @stopped = false
     seek_end = opts.fetch(:seek_end, true)
-    sleep(0.25) until File.exists?(filename)
-    File.open(filename) do |file|
+    @force_poll = opts.fetch(:force_poll, false)
+    sleep(0.25) until File.exists?(file_path)
+    File.open(file_path) do |file|
       unreported_line = ''
       if seek_end
         file.seek(0, IO::SEEK_END)
       else
         read_and_report_lines(file, unreported_line, &on_line)
       end
-      when_modified(filename) { read_and_report_lines(file, unreported_line, &on_line) }
+      when_modified(file_path) { read_and_report_lines(file, unreported_line, &on_line) }
     end
   end
 
@@ -49,25 +52,38 @@ class NotifiedTail
     # done for now
   end
 
-  def when_modified(file_path)
-    case NotifiedTail.get_ruby_platform
-    when /bsd/, /darwin/
-      require 'rb-kqueue'
-      @queue = KQueue::Queue.new
-      @queue.watch_file(file_path, :extend) { yield }
-      @queue.run
-    when /linux/
-      require 'rb-inotify'
-      @queue = INotify::Notifier.new
-      @queue.watch(file_path, :modify) { yield }
-      @queue.run
+  def when_modified(file_path, &block)
+    if @force_poll
+      poll(file_path, &block)
     else
-      last_mtime = File.mtime(file_path)
-      until @stopped do
-        sleep(0.5)
-        mtime = File.mtime(file_path)
-        yield if mtime != last_mtime # use != instead of > to mitigate DST complications
+      case NotifiedTail.get_ruby_platform
+      when /bsd/, /darwin/
+        require 'rb-kqueue'
+        @queue = KQueue::Queue.new
+        @queue.watch_file(file_path, :extend) { block.call }
+        @queue.run
+      when /linux/
+        require 'rb-inotify'
+        @queue = INotify::Notifier.new
+        @queue.watch(file_path, :modify) { block.call }
+        @queue.run
+      else
+        poll(file_path, &block)
+      end
+    end
+  end
+
+  def poll(file_path, &block)
+    last_mtime = File.mtime(file_path)
+    last_notify_time = nil
+    until @stopped do
+      sleep(0.5)
+      mtime = File.mtime(file_path)
+      changed = mtime != last_mtime
+      if changed || last_notify_time == nil || (Time.now - last_notify_time) > 5
         last_mtime = mtime
+        last_notify_time = Time.now
+        block.call
       end
     end
   end

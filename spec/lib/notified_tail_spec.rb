@@ -4,6 +4,8 @@ require 'notified_tail'
 
 describe NotifiedTail do
   describe '#tail' do
+    let!(:seek_end) { false }
+    let!(:force_poll) { false }
 
     shared_examples 'tail -f' do
       let!(:lines) { [] }
@@ -16,7 +18,7 @@ describe NotifiedTail do
 
         watcher = Thread.start do
           notifier = NotifiedTail.new
-          notifier.tail(fn, seek_end: seek_end) do |line|
+          notifier.tail(fn, seek_end: seek_end, force_poll: force_poll) do |line|
             puts "saw #{line.inspect}"
             expect(line).to eql expected.first
             expected.shift
@@ -51,19 +53,26 @@ describe NotifiedTail do
     end
 
     context 'when not seeking to the end' do
-      let!(:seek_end) { false }
       it_behaves_like 'tail -f -n 9999PB'
     end
 
     context 'when the platform does not support notifications' do
       before(:each) { allow(NotifiedTail).to receive(:get_ruby_platform).and_return('wha??') }
-      let!(:seek_end) { false }
       it_behaves_like 'tail -f -n 9999PB'
     end
 
     context 'when seeking to the end' do
       let!(:seek_end) { true }
       it_behaves_like 'tail -f -n 0'
+    end
+
+    context 'when forcing polling' do
+      let!(:force_poll) { true }
+      before(:each) do
+        expect(INotify::Notifier).to_not receive(:new) if defined?(INotify::Notifier)
+        expect(KQueue::Queue).to_not receive(:new) if defined?(KQueue::Queue)
+      end
+      it_behaves_like 'tail -f -n 9999PB'
     end
 
   end
