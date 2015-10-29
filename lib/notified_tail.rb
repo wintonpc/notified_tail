@@ -2,6 +2,8 @@
 # Inspired by http://rubyforadmins.com/reading-growing-files
 class NotifiedTail
 
+  attr_reader :file_path
+
   # Yields complete lines, one at a time.
   # Works even if file doesn't exist yet.
   # @param file_path [String] The file to tail
@@ -15,6 +17,7 @@ class NotifiedTail
   end
 
   def tail(file_path, opts, &on_line)
+    @file_path = file_path
     @stopped = false
     seek_end = opts.fetch(:seek_end, true)
     @force_poll = opts.fetch(:force_poll, false)
