@@ -18,12 +18,17 @@ describe NotifiedTail do
         append(fn, "before\ntailing\n")
 
         watcher = Thread.start do
-          notifier = NotifiedTail.new
-          notifier.tail(fn, seek_end: seek_end, force_poll: force_poll) do |line|
-            puts "saw #{line.inspect}"
-            expect(line).to eql expected.first
-            expected.shift
-            notifier.stop if expected.empty?
+          begin
+            notifier = NotifiedTail.new
+            notifier.tail(fn, seek_end: seek_end, force_poll: force_poll) do |line|
+              puts "saw #{line.inspect}"
+              expect(line).to eql expected.first
+              expected.shift
+              notifier.stop if expected.empty?
+            end
+          rescue Exception => e
+            puts "thread crashed: #{e.message}"
+            STDOUT.flush
           end
         end
         sleep(0.25) # let the notifier start up
