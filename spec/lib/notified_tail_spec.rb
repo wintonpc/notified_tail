@@ -53,70 +53,84 @@ describe NotifiedTail do
       it_behaves_like 'tail -f'
     end
 
-    context 'when not seeking to the end' do
-      it_behaves_like 'tail -f -n 9999PB'
-    end
+    # context 'when not seeking to the end' do
+    #   it_behaves_like 'tail -f -n 9999PB'
+    # end
+    #
+    # context 'when the platform does not support notifications' do
+    #   before(:each) { allow(NotifiedTail).to receive(:get_ruby_platform).and_return('wha??') }
+    #   it_behaves_like 'tail -f -n 9999PB'
+    # end
+    #
+    # context 'when seeking to the end' do
+    #   let!(:seek_end) { true }
+    #   it_behaves_like 'tail -f -n 0'
+    # end
+    #
+    # context 'when forcing polling' do
+    #   let!(:force_poll) { true }
+    #   before(:each) do
+    #     expect(INotify::Notifier).to_not receive(:new) if defined?(INotify::Notifier)
+    #     expect(KQueue::Queue).to_not receive(:new) if defined?(KQueue::Queue)
+    #   end
+    #   it_behaves_like 'tail -f -n 9999PB'
+    # end
 
-    context 'when the platform does not support notifications' do
-      before(:each) { allow(NotifiedTail).to receive(:get_ruby_platform).and_return('wha??') }
-      it_behaves_like 'tail -f -n 9999PB'
-    end
-
-    context 'when seeking to the end' do
-      let!(:seek_end) { true }
-      it_behaves_like 'tail -f -n 0'
-    end
-
-    context 'when forcing polling' do
-      let!(:force_poll) { true }
-      before(:each) do
-        expect(INotify::Notifier).to_not receive(:new) if defined?(INotify::Notifier)
-        expect(KQueue::Queue).to_not receive(:new) if defined?(KQueue::Queue)
-      end
-      it_behaves_like 'tail -f -n 9999PB'
-    end
-
-    it 'can be stopped before new data is tailed' do
-      File.write(fn, "hello\n")
-
-      thread = Thread.start do
-        notifier = NotifiedTail.new
-        notifier.tail(fn, seek_end: false) do |line|
-          print "saw #{line.inspect}\n"
-          if line == 'hello'
-            Thread.start do
-              expect(notifier.instance_variable_get(:@queue)).to be_nil
-              notifier.stop
-            end
-          end
+    it 'aaa' do
+      Thread.start do
+        loop do
+          sleep(1)
+          append(fn, "x\n")
         end
       end
 
-      thread.join
-    end
-
-    it 'can be stopped after new data is tailed (must write to the file)' do
-      thread = Thread.start do
-        notifier = NotifiedTail.new
-        notifier.tail(fn, seek_end: false) do |line|
-          print "saw #{line.inspect}\n"
-          if line == 'there'
-            Thread.start do
-              expect(notifier.instance_variable_get(:@queue)).to_not be_nil
-              notifier.stop
-              File.open(notifier.file_path, 'a'){|f| f.print("\n")}
-            end
-          end
-        end
+      notifier = NotifiedTail.new
+      notifier.tail(fn, seek_end: false) do |line|
+        puts "saw #{line.inspect}"
       end
-      sleep(0.25) # let the notifier start up
-
-      append(fn, "hello\n")
-      sleep(0.5)
-      append(fn, "there\n")
-
-      thread.join
     end
+
+    # it 'can be stopped before new data is tailed' do
+    #   File.write(fn, "hello\n")
+    #
+    #   thread = Thread.start do
+    #     notifier = NotifiedTail.new
+    #     notifier.tail(fn, seek_end: false) do |line|
+    #       print "saw #{line.inspect}\n"
+    #       if line == 'hello'
+    #         Thread.start do
+    #           expect(notifier.instance_variable_get(:@queue)).to be_nil
+    #           notifier.stop
+    #         end
+    #       end
+    #     end
+    #   end
+    #
+    #   thread.join
+    # end
+    #
+    # it 'can be stopped after new data is tailed (must write to the file)' do
+    #   thread = Thread.start do
+    #     notifier = NotifiedTail.new
+    #     notifier.tail(fn, seek_end: false) do |line|
+    #       print "saw #{line.inspect}\n"
+    #       if line == 'there'
+    #         Thread.start do
+    #           expect(notifier.instance_variable_get(:@queue)).to_not be_nil
+    #           notifier.stop
+    #           File.open(notifier.file_path, 'a'){|f| f.print("\n")}
+    #         end
+    #       end
+    #     end
+    #   end
+    #   sleep(0.25) # let the notifier start up
+    #
+    #   append(fn, "hello\n")
+    #   sleep(0.5)
+    #   append(fn, "there\n")
+    #
+    #   thread.join
+    # end
 
     def append(fn, text)
       File.open(fn, 'a') { |f| f.print(text) }
